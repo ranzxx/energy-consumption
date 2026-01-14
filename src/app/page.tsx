@@ -4,7 +4,6 @@ import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -17,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { FormEvent, useState } from "react";
+import { useState, FormEvent } from "react";
 import { supabase } from "@/lib/supabase";
 
 // Type definitions
@@ -39,14 +38,28 @@ interface EnergyUsageData {
   electronics: Electronic[];
 }
 
-const timeOptions: TimeOption[] = Array.from({ length: 24 }, (_, i) => ({
-  label: `${i + 1} Jam`,
-  value: i + 1,
-}));
+// Generate time options: 30 menit, kemudian 1 jam, 2 jam, 3 jam, ...
+const timeOptions: TimeOption[] = [
+  { label: "30 Menit", value: 0.5 }, // Khusus 30 menit di awal
+];
+
+// Lalu tambahkan 1 jam sampai 24 jam
+for (let i = 1; i <= 24; i++) {
+  timeOptions.push({ label: `${i} Jam`, value: i });
+}
+
+// Daftar pilihan daya listrik sesuai PLN
+const voltageOptions = [
+  { label: "900 V (Subsidi)", value: "900" },
+  { label: "900 V (Non-Subsidi)", value: "900(non-subsidi)" },
+  { label: "1300-2200 V", value: "1300" },
+  { label: "3500-5500 V", value: "3500" },
+  { label: ">6600 V", value: "6600" },
+];
+
+const classOptions = ["10A", "10B", "11A", "11B", "12A", "12B"] as const;
 
 export default function Home() {
-  const classOptions = ["10A", "10B", "11A", "11B", "12A", "12B"];
-
   const [name, setName] = useState<string>("");
   const [className, setClassName] = useState<string>("");
   const [voltage, setVoltage] = useState<string>("");
@@ -56,12 +69,18 @@ export default function Home() {
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   const addItem = () => {
-    if (electronics.length >= 5) return;
+    if (electronics.length >= 10) {
+      alert("Maksimal 10 item elektronik");
+      return;
+    }
     setElectronics((prev) => [...prev, { type: "", power: 0, time: 0 }]);
   };
 
   const removeItem = (index: number) => {
-    if (electronics.length === 1) return;
+    if (electronics.length === 1) {
+      alert("Minimal harus ada 1 item elektronik");
+      return;
+    }
     setElectronics((prev) => prev.filter((_, i) => i !== index));
   };
 
@@ -80,20 +99,60 @@ export default function Home() {
     setIsSubmitting(true);
 
     try {
-      // Validasi data
-      if (!name.trim() || !className || !voltage) {
-        alert("Mohon lengkapi semua field yang diperlukan");
+      // Validasi manual tanpa alert bawaan browser
+      if (!name.trim()) {
+        alert("Nama harus diisi");
         setIsSubmitting(false);
         return;
       }
 
-      // Validasi electronics
-      const isElectronicsValid = electronics.every(
-        (item) => item.type.trim() && item.power > 0 && item.time > 0
+      if (!className) {
+        alert("Kelas harus dipilih");
+        setIsSubmitting(false);
+        return;
+      }
+
+      if (!voltage) {
+        alert("Daya listrik harus dipilih");
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Validasi electronics - hanya yang terisi
+      const filledElectronics = electronics.filter(
+        (item) => item.type.trim() || item.power > 0 || item.time > 0
       );
 
-      if (!isElectronicsValid) {
-        alert("Mohon lengkapi semua data elektronik dengan benar");
+      // Cek jika ada item yang terisi sebagian (tidak lengkap)
+      for (let i = 0; i < electronics.length; i++) {
+        const item = electronics[i];
+        const hasAnyData = item.type.trim() || item.power > 0 || item.time > 0;
+
+        if (hasAnyData) {
+          // Jika ada data, pastikan semua field terisi
+          if (!item.type.trim()) {
+            alert(`Jenis elektronik item ${i + 1} harus diisi`);
+            setIsSubmitting(false);
+            return;
+          }
+
+          if (!item.power || item.power <= 0) {
+            alert(`Daya elektronik item ${i + 1} harus lebih dari 0`);
+            setIsSubmitting(false);
+            return;
+          }
+
+          if (!item.time || item.time <= 0) {
+            alert(`Lama penggunaan item ${i + 1} harus dipilih`);
+            setIsSubmitting(false);
+            return;
+          }
+        }
+      }
+
+      // Pastikan minimal ada 1 elektronik yang terisi lengkap
+      if (filledElectronics.length === 0) {
+        alert("Minimal harus ada 1 item elektronik yang diisi");
         setIsSubmitting(false);
         return;
       }
@@ -102,11 +161,13 @@ export default function Home() {
         name: name.trim(),
         class: className,
         voltage: Number(voltage),
-        electronics: electronics.map((item) => ({
-          type: item.type.trim(),
-          power: Number(item.power),
-          time: Number(item.time),
-        })),
+        electronics: electronics
+          .filter((item) => item.type.trim() && item.power > 0 && item.time > 0)
+          .map((item) => ({
+            type: item.type.trim(),
+            power: Number(item.power),
+            time: Number(item.time),
+          })),
       };
 
       const { error } = await supabase.from("energy_usage").insert([data]);
@@ -131,7 +192,7 @@ export default function Home() {
   };
 
   return (
-    <Card className="w-full max-w-xl">
+    <Card className="w-full max-w-xl mx-auto">
       <CardHeader>
         <CardTitle className="text-lg">Data Konsumsi Listrik</CardTitle>
         <CardDescription className="-mt-2">
@@ -139,7 +200,7 @@ export default function Home() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <form className="space-y-4" onSubmit={handleSubmit}>
+        <form className="space-y-4" onSubmit={handleSubmit} noValidate>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-4">
             <div className="grid gap-2 flex-1">
               <Label htmlFor="name">Nama</Label>
@@ -147,17 +208,16 @@ export default function Home() {
                 id="name"
                 name="name"
                 type="text"
-                placeholder="Your Name"
+                placeholder="Nama Anda"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                required
               />
             </div>
             <div className="grid gap-2 flex-1">
               <Label htmlFor="class">Kelas</Label>
-              <Select value={className} onValueChange={setClassName} required>
+              <Select value={className} onValueChange={setClassName}>
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Choose Your Class" />
+                  <SelectValue placeholder="Pilih Kelas" />
                 </SelectTrigger>
                 <SelectContent>
                   {classOptions.map((option) => (
@@ -169,24 +229,21 @@ export default function Home() {
               </Select>
             </div>
           </div>
+
           <div className="grid gap-2">
-            <Label htmlFor="voltage">Total Daya Listrik</Label>
-            <div className="flex">
-              <Input
-                id="voltage"
-                name="voltage"
-                type="number"
-                placeholder="Voltage"
-                value={voltage}
-                onChange={(e) => setVoltage(e.target.value)}
-                required
-                min="0"
-                className="rounded-r-none"
-              />
-              <div className="flex items-center px-3 bg-gray-100 border border-l-0 rounded-r-md text-sm text-gray-600">
-                Volt
-              </div>
-            </div>
+            <Label htmlFor="voltage">Daya Listrik Pelanggan</Label>
+            <Select value={voltage} onValueChange={setVoltage}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Pilih Daya Listrik" />
+              </SelectTrigger>
+              <SelectContent>
+                {voltageOptions.map((option, index) => (
+                  <SelectItem key={index} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-3">
@@ -201,7 +258,6 @@ export default function Home() {
                   placeholder="Jenis Elektronik"
                   value={item.type}
                   onChange={(e) => updateItem(index, "type", e.target.value)}
-                  required
                 />
 
                 <Input
@@ -211,9 +267,8 @@ export default function Home() {
                   onChange={(e) =>
                     updateItem(index, "power", Number(e.target.value))
                   }
-                  required
-                  min="0"
-                  step="0.01"
+                  min="1"
+                  step="1"
                 />
 
                 <Select
@@ -221,7 +276,6 @@ export default function Home() {
                   onValueChange={(val) =>
                     updateItem(index, "time", Number(val))
                   }
-                  required
                 >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Lama Penggunaan" />
@@ -257,7 +311,7 @@ export default function Home() {
             <Button
               type="button"
               onClick={addItem}
-              disabled={electronics.length >= 5}
+              disabled={electronics.length >= 10}
               variant="outline"
               className="w-full sm:w-auto"
             >
@@ -268,76 +322,6 @@ export default function Home() {
           <Button type="submit" className="w-full" disabled={isSubmitting}>
             {isSubmitting ? "Menyimpan..." : "Submit"}
           </Button>
-
-          {/* {electronics.map((item, index) => (
-            <div key={index} className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="flex flex-col gap-2">
-                {index === 0 && (
-                  <Label htmlFor="electronic_type">Jenis Elektronik</Label>
-                )}
-                <Input
-                  id="electronic_type"
-                  name="electronic_type"
-                  type="text"
-                  placeholder="Electronic Type"
-                  required
-                  onChange={(e) => updateItem(index, "type", e.target.value)}
-                />
-              </div>
-
-              <div className="flex flex-col gap-2">
-                {index === 0 && <Label htmlFor="power">Besar Daya</Label>}
-                <Input
-                  id="power"
-                  name="power"
-                  type="text"
-                  placeholder="Power Usage"
-                  required
-                  onChange={(e) =>
-                    updateItem(index, "power", Number(e.target.value))
-                  }
-                />
-              </div>
-
-              <div className="flex flex-col gap-2">
-                {index === 0 && (
-                  <Label htmlFor="select3">Lama Penggunaan</Label>
-                )}
-                <Select
-                  onValueChange={(val) =>
-                    updateItem(index, "time", Number(val))
-                  }
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Time Usage" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {timeOptions.map((option) => (
-                      <SelectItem
-                        key={option.value}
-                        value={String(option.value)}
-                      >
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          ))} */}
-          {/* <div className="flex justify-center items-center">
-            <Button
-              type="button"
-              onClick={addItem}
-              disabled={electronics.length >= 5}
-              className="bg-black text-white"
-            >
-              + Add Item
-            </Button>
-          </div> */}
-          {/* <Button type="submit" className="w-full">
-            Submit
-          </Button> */}
         </form>
       </CardContent>
     </Card>
