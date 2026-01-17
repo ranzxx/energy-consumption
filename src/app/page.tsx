@@ -50,11 +50,11 @@ for (let i = 1; i <= 24; i++) {
 
 // Daftar pilihan daya listrik sesuai PLN
 const voltageOptions = [
-  { label: "900 V (Subsidi)", value: "900" },
-  { label: "900 V (Non-Subsidi)", value: "900(non-subsidi)" },
-  { label: "1300-2200 V", value: "1300" },
-  { label: "3500-5500 V", value: "3500" },
-  { label: ">6600 V", value: "6600" },
+  { label: "900 VA (Subsidi)", value: "900" },
+  { label: "900 VA (Non-Subsidi)", value: "900(non-subsidi)" },
+  { label: "1300-2200 VA", value: "1300" },
+  { label: "3500-5500 VA", value: "3500" },
+  { label: ">6600 VA", value: "6600" },
 ];
 
 const classOptions = ["10A", "10B", "11A", "11B", "12A", "12B"] as const;
@@ -231,10 +231,10 @@ export default function Home() {
           </div>
 
           <div className="grid gap-2">
-            <Label htmlFor="voltage">Daya Listrik Pelanggan</Label>
+            <Label htmlFor="voltage">Tegangan Listrik</Label>
             <Select value={voltage} onValueChange={setVoltage}>
               <SelectTrigger className="w-full">
-                <SelectValue placeholder="Pilih Daya Listrik" />
+                <SelectValue placeholder="Pilih Tegangan Listrik" />
               </SelectTrigger>
               <SelectContent>
                 {voltageOptions.map((option, index) => (
